@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FaSearch } from "react-icons/fa";
 import Photo from "./Photo";
 // const clientID = `?client_id=${process.env.REACT_APP_ACCESS_KEY}`
@@ -10,7 +10,8 @@ function App() {
 	const [photos, setPhotos] = useState([]);
 	const [page, setPage] = useState(1);
 	const [query, setQuery] = useState("");
-	const [changedQuery, setChangedQuery] = useState(false);
+	const [newImages, setNewImages] = useState(false);
+	const mounted = useRef(null);
 
 	const fetchImages = async () => {
 		setLoading(true);
@@ -28,24 +29,20 @@ function App() {
 		try {
 			const response = await fetch(url);
 			const data = await response.json();
-			let images = [];
-			if (query) {
-				images = data.results;
-			} else {
-				images = data;
-			}
 			setPhotos((oldPhotos) => {
-				if (changedQuery) {
-					setChangedQuery(false);
-					return images;
+				if (query !== "" && page === 1) {
+					return data.results;
+				} else if (query) {
+					return [...oldPhotos, ...data.results];
 				} else {
-					return [...oldPhotos, ...images];
+					return [...oldPhotos, ...data];
 				}
 			});
 		} catch (error) {
 			console.log(error);
 		}
 		setLoading(false);
+		setNewImages(false);
 	};
 
 	useEffect(() => {
@@ -53,28 +50,60 @@ function App() {
 	}, [page]);
 
 	useEffect(() => {
-		const event = window.addEventListener("scroll", () => {
-			if (
-				!loading &&
-				window.innerHeight + window.scrollY >=
-					document.body.scrollHeight - 2
-			) {
-				setPage((oldPage) => {
-					return oldPage + 1;
-				});
-			}
+		if (!mounted.current) {
+			mounted.current = true;
+			// return because it's not mounted,
+			// next code will not run on initial render
+			return;
+		}
+		if (!newImages) return;
+		if (loading) return;
+		setPage((oldPage) => {
+			return oldPage + 1;
 		});
+	}, [newImages]);
+
+	const event = () => {
+		if (
+			window.innerHeight + window.scrollY >=
+			document.body.scrollHeight - 2
+		) {
+			setNewImages(true);
+		}
+	};
+	useEffect(() => {
+		window.addEventListener("scroll", event);
 		return () => window.removeEventListener("scroll", event);
 	}, []);
 
+	// useEffect(() => {
+	// 	const event = window.addEventListener("scroll", () => {
+	// 		if (
+	// 			!loading &&
+	// 			window.innerHeight + window.scrollY >=
+	// 				document.body.scrollHeight - 2
+	// 		) {
+	// 			setPage((oldPage) => {
+	// 				return oldPage + 1;
+	// 			});
+	// 		}
+	// 	});
+	// 	return () => window.removeEventListener("scroll", event);
+	// }, []);
+
 	const handleSubmit = (e) => {
 		e.preventDefault();
-		if (changedQuery) {
+		// if (!query) return;
+		if (page === 1) {
 			fetchImages();
 			return;
 		}
 		setPage(1);
 	};
+
+	useEffect(() => {
+		//console.log(photos);
+	}, [photos]);
 
 	return (
 		<main>
@@ -85,10 +114,7 @@ function App() {
 						className="form-input"
 						placeholder="search"
 						value={query}
-						onChange={(e) => {
-							setQuery(e.target.value);
-							setChangedQuery(true);
-						}}
+						onChange={(e) => setQuery(e.target.value)}
 					/>
 					<button
 						type="submit"
